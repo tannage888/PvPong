@@ -4,8 +4,6 @@ import math
 import random
 import time
 
-from PvPong import PADDLE_WIDTH
-
 # --- Constants ---
 WINDOW_WIDTH, WINDOW_HEIGHT = 1200, 720
 PONGBALL_SPEED = 400
@@ -66,7 +64,7 @@ class Mob(pygame.sprite.Sprite):
 
         if dx != 0 or dy != 0:
             self.points = [(x + dx, y + dy) for (x, y) in self.points]
-            self.center = (self.center[0] + dx, self.center[1] + dy)
+            self.center = [self.center[0] + dx, self.center[1] + dy]
             # self.image = pygame.Surface(self.size, pygame.SRCALPHA)
             # self.rect = self.image.get_rect(center=(int(self.center[0]), int(self.center[1])))
 
@@ -113,10 +111,13 @@ class Polygon(Mob):
         # Draw the polygon outline
         pygame.draw.polygon(self.image, self.bordercolor, self.local_points, self.thickness)
 
-    def move(self, vector):
-        self.center = (self.center[0] + vector[0], self.center[1] + vector[1])
+    def move(self, vector, dt):
+        self.center = [self.center[0] + vector[0] * dt, self.center[1] + vector[1]* dt]
         self.clamp_to_screen()     
         self.refresh_image()
+
+    def rotate_degrees_per_second(self, degrees, dt):
+        self.rotate(degrees * dt)
 
     def rotate(self, degrees):
         # Rotate self.points by 'degrees' about the center
@@ -139,7 +140,7 @@ class Polygon(Mob):
             new_points.append((new_x, new_y))
 
         self.points = new_points
-        self.center = (cx, cy)
+        self.center = [cx, cy]
         self.clamp_to_screen()
         self.set_local_coords()
         self.size = Polygon.get_size(self.points)
@@ -307,20 +308,24 @@ class Pongball(Mob):
         self.rect = self.image.get_rect(center=self.center)
         self.mask = pygame.mask.from_surface(self.image)
 
-    def update(self):
-        self.center[0] += self.velocity[0]
-        self.center[1] += self.velocity[1]
+    def move(self, vector=None, dt = 0):
+        if vector is None:
+            vector = self.velocity
+        self.center[0] += vector[0] * dt
+        self.center[1] += vector[1] * dt
         self.rect.center = self.center
+
+    def update(self):
         self.bounce_boundary()
         super().update()
 
 
 class Paddle(Polygon):
-    def __init__(self, center, length, thickness):
 
-        super().__init__(center, (length, thickness))
+        # polygon constructor def __init__(self, points, center,  orientation = 0, color= [255,255,255], thickness=1):
+    def __init__(self, center, length, orientation = 0 , color = [255,255,255], thickness=25):
 
-        # self.last_shot_time = 0
+        super().__init__(Block.get_points(length, thickness, center), center, orientation, color, thickness)
 
     def get_endpoints(self):
         angle_rad = math.radians(self.orientation)
@@ -335,30 +340,39 @@ class Paddle(Polygon):
 class PlayerPaddle(Paddle):
     # Player paddle is always at the bottom of the screen
 
-    def __init__(self, center):
-        super().__init__(center, PADDLE_WIDTH, PADDLE_HEIGHT)
+    def __init__(self, center, color = [255, 255, 255]):
+        super().__init__(center, PADDLE_WIDTH, 0, color, PADDLE_HEIGHT)
         self.keys = [pygame.K_a, pygame.K_d, pygame.K_w]
         self.shootbutton = 0
         self.auto = False  # If True, paddle moves automatically
         self.autocooldown = 0.01
         self.last_autotime = 0
+        self.length = PADDLE_WIDTH
+
+    def move_towards(self, x, speed, dt):
+        if abs(self.center[0] - x) > 1:
+            direction = 1 if x > self.center[0] else -1
+            self.move((direction * speed,0), dt)
+
 
     def handle_input(self, keys, mousebuttons, mousepos, pongball, projectiles, dt):
 
         if keys[self.keys[0]]:
-            self.move(-PADDLE_SPEED_MANUAL * dt)
-            self.auto = not self.auto           
+            self.move((-PADDLE_SPEED_MANUAL,0), dt)
+            if self.auto: self.auto = not self.auto           
         elif keys[self.keys[1]]:
-            self.move(PADDLE_SPEED_MANUAL * dt)
-            self.auto = not self.auto           
-        # elif keys[self.keys[2]]:
-        #     if time.time() - self.last_autotime >= self.autocooldown:
-        #         self.auto = not self.auto           
+            self.move((PADDLE_SPEED_MANUAL,0), dt)
+            if self.auto: self.auto = not self.auto
+        elif keys[self.keys[2]]:
+            if time.time() - self.last_autotime >= self.autocooldown:
+                self.auto = not self.auto           
+
+        if self.auto:
+            self.move_towards(pongball.center[0], PADDLE_SPEED_IDLE, dt)
 
         # Keep paddle on screen
         self.center[0] = max(int(self.length//2), min(int(WINDOW_WIDTH-self.length//2), self.center[0]))
-        if self.auto:
-            self.move_towards(pongball.center[0], PADDLE_SPEED_IDLE, dt)
+
         # Shooting
         # if mousebuttons[self.shootbutton]:
         #     now = time.time()
@@ -366,11 +380,6 @@ class PlayerPaddle(Paddle):
         #         proj = Projectile(20, (self.center[0], self.center[1]), 1, 'standard', mousepos)
         #         projectiles.add(proj)
         #         self.last_shot_time = now
-
-
-
-
-
 
 
 def main():
@@ -388,8 +397,13 @@ def main():
     mob = ObstacleBlock.create_rectangle(400, 50, (600, 360), [255, 255, 255], 1)
     player1 = PlayerPaddle((int(WINDOW_WIDTH // 2), WINDOW_HEIGHT - 50))
     crosshairs = Crosshairs()
-    pongball = Pongball(5, (400,300), [255,255,255], 1, [35,35])
+    pongball = Pongball(5, (400,300), [255,255,255], 1, [235,235])
+    projectiles = []
+
     running = True
+   
+    BLOCKMOVE = 100
+
     while running:
         dt = clock.tick(60) / 1_000.0
 
@@ -400,24 +414,19 @@ def main():
         keys = pygame.key.get_pressed()
 
         if keys[pygame.K_LEFT]:
-            mob.move([-10,0])
+            mob.move([-BLOCKMOVE,0], dt)
         if keys[pygame.K_RIGHT]:
-            mob.move([10,0])
+            mob.move([BLOCKMOVE,0], dt)
         if keys[pygame.K_UP]:
-            mob.move([0,-10])
+            mob.move([0,-BLOCKMOVE], dt)
         if keys[pygame.K_DOWN]:
-            mob.move([0,10])
-        if keys[pygame.K_d]:
-            mob.rotate(10)
-        if keys[pygame.K_a]:
-            mob.rotate(-10)
+            mob.move([0,BLOCKMOVE], dt)
+        if keys[pygame.K_n]:
+            mob.rotate_degrees_per_second(BLOCKMOVE, dt)  
+        if keys[pygame.K_m]:
+            mob.rotate_degrees_per_second(-BLOCKMOVE, dt)
 
         mousebuttons = pygame.mouse.get_pressed()
-        mousepos = pygame.mouse.get_pos()
-
-        player1.handle_input(keys, mousebuttons, mousepos, pongball, projectiles, dt)
-
-
         mouse_pos = pygame.mouse.get_pos()
 
         display_surface.fill((0, 0, 0))        
@@ -434,11 +443,15 @@ def main():
 
         mob.update()
         display_surface.blit(mob.image, mob.rect)
+        pongball.move(dt=dt)
         pongball.update()
         display_surface.blit(pongball.image, pongball.rect)
 
         crosshairs.update_position(mouse_pos)
         display_surface.blit(crosshairs.image, crosshairs.rect)
+
+        player1.handle_input(keys, mousebuttons, mouse_pos, pongball, projectiles, dt)
+        display_surface.blit(player1.image, player1.rect)
 
         pygame.display.update()
 
