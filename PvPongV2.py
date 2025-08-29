@@ -351,9 +351,9 @@ class PlayerPaddle(Paddle):
         elif keys[self.keys[1]]:
             self.move(PADDLE_SPEED_MANUAL * dt)
             self.auto = not self.auto           
-        elif keys[self.keys[2]]:
-            if time.time() - self.last_autotime >= self.autocooldown:
-                self.auto = not self.auto           
+        # elif keys[self.keys[2]]:
+        #     if time.time() - self.last_autotime >= self.autocooldown:
+        #         self.auto = not self.auto           
 
         # Keep paddle on screen
         self.center[0] = max(int(self.length//2), min(int(WINDOW_WIDTH-self.length//2), self.center[0]))
@@ -386,7 +386,7 @@ def main():
     # mobgroup.add(Block(300, 15, (800, 150), THICKNESS, 45))
 
     mob = ObstacleBlock.create_rectangle(400, 50, (600, 360), [255, 255, 255], 1)
-
+    player1 = PlayerPaddle((int(WINDOW_WIDTH // 2), WINDOW_HEIGHT - 50))
     crosshairs = Crosshairs()
     pongball = Pongball(5, (400,300), [255,255,255], 1, [35,35])
     running = True
@@ -411,6 +411,12 @@ def main():
             mob.rotate(10)
         if keys[pygame.K_a]:
             mob.rotate(-10)
+
+        mousebuttons = pygame.mouse.get_pressed()
+        mousepos = pygame.mouse.get_pos()
+
+        player1.handle_input(keys, mousebuttons, mousepos, pongball, projectiles, dt)
+
 
         mouse_pos = pygame.mouse.get_pos()
 
