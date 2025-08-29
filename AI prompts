@@ -1,0 +1,162 @@
+create the below code using python and pygame
+
+create a display_surface with WINDOW_WIDTH, WINDOW_HEIGHT = 1200, 720
+set PONGBALL_SPEED to 400
+set PONGBALL_DAMAGE = 100
+set SPAWNPROB = 0.6
+set POLYGON_MAXSIDES = 5
+set POLYGON_MINSIDES = 3
+set POLYGON_MAXSIZE = 100
+set POLYGON_MINSIZE = 50
+set POLYGON_MAX_NUMBER = 5
+set POLYGON_HEALTH = 300
+set PADDLE_SPEED_IDLE = 300
+set PADDLE_SPEED_MANUAL = 300
+set PADDLE_DISTANCE_FROM_EDGE = 50
+set collision_sound = pygame.mixer.Sound(r'.\Pong\Sounds\18782.mp3')
+set pewpew_sound = pygame.mixer.Sound(r'.\Pong\Sounds\mixkitshortlasergunshot1670.wav')
+set PROJECTILE_COOLDOWN = 0.1
+thickness of the circle and line must be 1
+
+create a class Line that inherits from the pygame.sprite.Sprite
+This class constructor takes the following parameters:
+     length as an integer in pixels 
+     center a two element tuple that denotes the center of the line
+     orientation as an angle in degrees where 0 degrees is horizontal and 90 degrees is vertical
+     and integer that denotes the thickness of the line in pixels minimum 1 pixel
+     This class must generate a mask for the line.  
+     line cannot be off screen
+     default colour is white but can be changed
+
+create class Projectile that inherits from the Line class:
+     class dictionary is:
+    colour_dict = {
+        "standard": (255, 0, 0),  # red
+        "bouncy": (0, 255, 0)     # green
+    }
+     constructor takes the following parameters:
+         same parameters as Line class
+         a direction string that is either 'up' or 'down'
+         a type string that is one of ['standard', 'bouncy']
+     this Projectile is coloured according to the type parameter using the class dictionary
+     set projectile_speed if the direction is 'up' to 1 * PONGBALL_SPEED*2 pixels per second
+     set projectile_speed if the direction is 'down' to PONGBALL_SPEED*2 pixels per second
+     this Projectile moves projectile_speed pixels per second
+     this Projectile plays pewpew_sound when created
+     this Projectile is destroyed if it moves off screen
+     if the type is 'standard':
+         if this Projectile collides with a polygon the polygon takes PONGBALL_DAMAGE damage and the line is destroyed
+         if this Projectile collides with the pongball the pongball bounces off the line and the line is destroyed
+     if the type is 'bouncy':
+         if this Projectile collides with a polygon the polygon takes PONGBALL_DAMAGE damage and the line bounces off the polygon
+         if this Projectile collides with the pongball the pongball bounces off the line and the line bounces off the pongball
+
+
+create a class Paddle that inherits from the Line class:
+ constructor takes the following parameters:
+     same parameters as Line class
+         length of line is 100
+         orientation is horizontal
+         thickness is 5
+         if location is 'top' the center of the line is (WINDOW_WIDTH/2, 50)
+         if location is 'bottom' the center of the line is (WINDOW_WIDTH/2, WINDOW_HEIGHT50)
+     orientation string that is either 'top' or 'bottom'
+     a list of keys in a list
+         the first element is the key to move left
+         the second element is the key to move right
+         the third element is the key to shoot
+ if the location is 'top' the paddle is 50 pixels from the top of the screen
+ if the location is 'bottom' the paddle is 50 pixels from the bottom of the screen
+ the move left key  moves the line left at PADDLE_SPEED_MANUAL pixels per second
+ the right arrow key moves the line right at PADDLE_SPEED_MANUAL pixels per second
+ if no keys are being pressed the Paddle moves towards the x coordinate of the pongball with speed PADDLE_SPEED_IDLE pixels per second
+ if the shoot key is pressed:
+     if location is 'top':
+         create a Projectile that:
+             is a vertical line
+             the center of the line is at the center of the Paddle and 10 pixels below the Paddle
+             pass the direction as 'down'
+             pass the type as 'standard'
+     if location is 'bottom':
+             is a vertical line
+             the center of the line is at the center of the Paddle and 10 pixels below the Paddle
+             pass the direction as 'up'
+             pass the type as 'standard'        
+     Paddle can only generate Projectile once every PROJECTILE_COOLDOWN seconds
+ Paddle must have a method called get_endpoints that returns the two end points of the line as two element tuples in a list
+
+create a class Circle that inherits from the pygame.sprite.Sprite
+ This class constructor takes three parameters:
+     radius as an integer in pixels 
+     center a two element tuple that denotes the centre of the circle
+     and integer that denotes the thickness of the line in pixelsn minimum 1 pixel
+ This class must generate a mask for the circle.  
+ The circle must be white and filled with white
+
+create a class Polygon that inherits from the pygame.sprite.Sprite
+This class constructor takes three parameters:
+ the length in pixels of each side
+ the number of sides minimum POLYGON_MINSIDES maximum POLYGON_MAXSIDES
+ center a two element tuple that denotes the centre of the polygon
+ and integer that denotes the thickness of the line in pixelsn minimum 1 pixel
+ each Polygon has health = POLYGON_HEALTH
+ polygons are destroyed when their health is 0 or less
+ no part of the polygon can be off screen
+ no part of the polygon can overlap with another polygon
+ no part of the polygon can be within PADDLE_DISTANCE_FROM_EDGE of the top or bottom of the screen
+ Polygon cannot spawn overlapping with the pongball
+ Polygon fill colour is white * health/POLYGON_HEALTH and must be refreshed when health changes
+This class must generate a mask for the Polygon.  The Polygon must be white abnd filled with white
+
+using the Circle class:
+ create a circle of radius 10 with the center at the centre of the screen called pongball
+ the circle must be moving at PONGBALL_SPEED pixels a second in a random direction
+ the circle must bounce off the boundaries of the screen
+ the circle must bounce off the all other Lines and Polygons
+
+create a Paddle called Player1 with parameters:
+     orientation = 'top'
+     keys = [pygame.K_a, pygame.K_d, pygame.K_w]
+
+create a Paddle called Player2 with parameters:
+     orientation = 'bottom'
+     keys = [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP]
+
+
+the game loop must test for the collision between the pongball, the two lines and all Polygons using masks
+the pongball must do PONGBALL_DAMAGE to each polygon it collides with
+
+the pongball must bounce off the lines and polygons
+all collisions between the pongball and the lines or polygons must play collision_sound
+
+during the game loop Polygons with random sizes must spawn every second with SPAWNPROB
+
+
+ignore everything below here:
+using the Line class:
+ create a line called Player2 of length 100 pixels with the center of the line in the centre of the screen and 50 pixels from the top of the screen
+ Player2 cannot move off the screen
+ Player2 is coloured white
+ the left arrow key moves the line left and the right arrow key moves the line right at PADDLE_SPEED_MANUAL pixels per second
+ if no keys are being pressed the Line moves towards the x coordinate of the pongball with speed PADDLE_SPEED_IDLE pixels per second
+ if the down arrow is pressed:
+    create a vertical Line coloured red with length 20 pixels with the center of the line at the center of Player2 and 10 pixels below Player2
+     this new line moves downwards at PONGBALL_SPEED*2 pixels per second
+     if this line collides with a polygon the polygon takes PONGBALL_DAMAGE damage and the line is destroyed
+     if this line collides with the pongball the pongball bounces off the line and the line is destroyed
+     this line plays pewpew_sound when created
+     this line can only be generated once every PROJECTILE_COOLDOWN seconds
+
+using the Line class:
+ create a vertical line coloured red with called Player1 of length 100 pixels with the center of the line in the centre of the screen and 50 pixels from the bottom of the screen
+ Player1 cannot move off the screen
+ Player1 is coloured white
+ the a key moves the line left and the d key moves the line right at PADDLE_SPEED_MANUAL pixels per second
+ if no keys are being pressed the Line moves towards the x coordinate of the pongball with speed PADDLE_SPEED_IDLE pixels per second
+ if the down arrow is pressed:
+    create a Line of length 20 pixels with the center of the line at the center of Player1 and 10 pixels above Player1
+     this new line moves upwards at PONGBALL_SPEED*2 pixels per second
+     if this line collides with a polygon the polygon takes PONGBALL_DAMAGE damage and the line is destroyed
+     if this line collides with the pongball the pongball bounces off the line and the line is destroyed
+     this line plays pewpew_sound when created
+     this line can only be generated once every PROJECTILE_COOLDOWN seconds
