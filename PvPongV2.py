@@ -25,8 +25,8 @@ PADDLE_WIDTH = 100
 PADDLE_HEIGHT = 20
 
 pygame.init()
-collision_sound = pygame.mixer.Sound(r'.\PvPong\Sounds\18782.mp3')
-pewpew_sound = pygame.mixer.Sound(r'.\PvPong\Sounds\mixkit-short-laser-gun-shot-1670.wav')
+collision_sound = pygame.mixer.Sound(r'.\Sounds\18782.mp3')
+pewpew_sound = pygame.mixer.Sound(r'.\Sounds\mixkit-short-laser-gun-shot-1670.wav')
 
 class Mob(pygame.sprite.Sprite):
 
