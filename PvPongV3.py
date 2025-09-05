@@ -38,6 +38,7 @@ class Mob(pygame.sprite.Sprite):
         self.size = size
         self.image = pygame.Surface(self.size, pygame.SRCALPHA)
         self.rect = self.image.get_rect(center=self.center)
+        # self.mask = pygame.mask.from_surface(self.image)
 
     def update(self):
         pass
@@ -68,7 +69,7 @@ class Mob(pygame.sprite.Sprite):
 
     def refresh_image(self):
         self.rect = self.image.get_rect(center=self.center)
-        self.mask = pygame.mask.from_surface(self.image)
+        # self.mask = pygame.mask.from_surface(self.image)
 
 
 class Polygon(Mob):
@@ -272,52 +273,54 @@ def unit_vector(v):
         raise ValueError("Zero vector has no direction")
     return v / norm
 
-
-def signed_distance_point_to_line(p, a, b):
-    # Returns signed distance from p to line ab
-    a = np.array(a)
-    b = np.array(b)
-    p = np.array(p)
-    ab = b - a
-    ap = p - a
-    ab_perp = np.array([-ab[1], ab[0]])
-    ab_perp = ab_perp / np.linalg.norm(ab_perp)
-    return np.dot(ap, ab_perp), ab_perp
-
-def point_on_other_side_of_edge(impact_edge, center, velocity, radius):
+def point_to_segment_distance(p, a, b):
     """
-    impact_edge: tuple of two points ((x1, y1), (x2, y2))
-    center: tuple (cx, cy)
-    velocity: tuple (vx, vy)
-    radius: scalar
-    Returns: point (x, y) along velocity from center that is distance radius from impact_edge, on the other side.
+    Compute the distance from point p to the segment ab.
+
+    Args:
+        p (tuple): (px, py)
+        a (tuple): (x1, y1)
+        b (tuple): (x2, y2)
+
+    Returns:
+        tuple: (distance, (proj_x, proj_y)) where (proj_x, proj_y) is the closest point on the segment.
     """
-    a, b = impact_edge
-    c = np.array(center)
-    v = np.array(velocity)
-    v_unit = v / np.linalg.norm(v)
-    
-    # Get signed distance and normal direction from center to the edge
-    d_center, normal = signed_distance_point_to_line(center, a, b)
-    
-    # Decide the sign: we want the point on the opposite side from center
-    if d_center >= 0:
-        target_distance = -(radius)
-    else:
-        target_distance = radius
+    px, py = p
+    x1, y1 = a
+    x2, y2 = b
+    dx, dy = x2 - x1, y2 - y1
+    if dx == 0 and dy == 0:
+        # The segment is a point
+        return math.hypot(px - x1, py - y1), (x1, y1)
+    t = ((px - x1) * dx + (py - y1) * dy) / (dx*dx + dy*dy)
+    t = max(0, min(1, t))
+    proj_x = x1 + t * dx
+    proj_y = y1 + t * dy
+    dist = math.hypot(px - proj_x, py - proj_y)
+    return dist, (proj_x, proj_y)
 
-    # The set of points at distance 'target_distance' from the edge is the line parallel to impact_edge offset by 'target_distance' in the normal direction
-    # So, we solve for t:  dot((center + t*v) - a, normal) = target_distance
-    # => dot(center - a, normal) + t * dot(v, normal) = target_distance
-    # => t = (target_distance - dot(center - a, normal)) / dot(v, normal)
-    center_a = c - np.array(a)
-    v_dot_n = np.dot(v_unit, normal)
-    if abs(v_dot_n) < 1e-10:
-        raise ValueError("Velocity is parallel to the edge; no intersection.")
+def nearest_edge(p, points):
+    """
+    Given a point p=(px, py) and a list of (x, y) tuples for a polygon,
+    find the nearest edge to p.
+    Returns (i, j, proj) where points[i] and points[j] are the ends of the nearest edge,
+    and proj is the (x, y) of the closest point on the edge.
+    """
+    px, py = p
+    n = len(points)
+    min_dist = None
+    nearest = None
+    nearest_proj = None
 
-    t = (target_distance - np.dot(center_a, normal)) / v_dot_n
-    point = c + t * v_unit
-    return tuple(point)
+    for i in range(n):
+        j = (i + 1) % n
+        dist, proj = point_to_segment_distance((px, py), points[i], points[j])
+        if min_dist is None or dist < min_dist:
+            min_dist = dist
+            nearest = [points[i], points[j]]
+            nearest_proj = proj
+
+    return list(nearest)
 
 
 class Pongball(Mob):
@@ -370,18 +373,26 @@ class Pongball(Mob):
         self.center[1] += vector[1] * dt
         self.rect.center = self.center
 
+    def update_position(self, pos):
+        # pos is the mouse position
+        self.rect.center = pos
+
     def update(self):
         self.bounce_boundary()
         super().update()
 
-    def clip_ball_to_edge(self, impact_edge, polygon):
-        if point_in_polygon(self.center, polygon.points):
-            self.center = point_on_other_side_of_edge(impact_edge, self.center, self.velocity, self.radius)
-            
-        self.center = list(self.center)
-        self.refresh_image()
-        self.update()
         
+    def collidemob(self, mob):
+        blockplayercollide = pygame.sprite.collide_mask(mob, self)
+        if blockplayercollide is not None:
+            dotcoord = (mob.rect.topleft[0] + blockplayercollide[0], mob.rect.topleft[1] + blockplayercollide[1])
+            clipping_projection = dotcoord - unit_vector(self.velocity) * (self.radius + 1)
+
+            self.center = clipping_projection
+            self.refresh_image()
+            self.update()
+
+
 class Paddle(Polygon):
 
         # polygon constructor def __init__(self, points, center,  orientation = 0, color= [255,255,255], thickness=1):
@@ -492,9 +503,9 @@ def main():
     mob = ObstacleBlock.create_rectangle(600, 50, (600, 360), [255, 255, 255], 1)
     
     player1 = PlayerPaddle((int(WINDOW_WIDTH // 2), WINDOW_HEIGHT - 50))
-    crosshairs = Crosshairs()
+    # crosshairs = Crosshairs()
     
-    pongball = Pongball(5, (350, 190), [255,255,255], 1, [255,255])
+    pongball = Pongball(5, (350, 190), [255,255,255], 1, [0,0])
     
     projectiles = []
 
@@ -528,13 +539,14 @@ def main():
 
         display_surface.fill((0, 0, 0))        
 
-        pongball.move(dt=dt)
-        pongball.update()
 
         mousebuttons = pygame.mouse.get_pressed()
         mouse_pos = pygame.mouse.get_pos()
 
-        crosshairs.update_position(mouse_pos)
+        # pongball.move(dt=dt)
+        pongball.update_position(mouse_pos)
+        pongball.update()
+        # crosshairs.update_position(mouse_pos)
 
         player1.handle_input(keys, mousebuttons, mouse_pos, pongball, projectiles, dt)
         player1.update()       
@@ -543,19 +555,11 @@ def main():
 
         display_surface.blit(mob.image, mob.rect)
         display_surface.blit(pongball.image, pongball.rect)
-        display_surface.blit(crosshairs.image, crosshairs.rect)
+        # display_surface.blit(crosshairs.image, crosshairs.rect)
         display_surface.blit(player1.image, player1.rect)
 
-        ballplayercollide = pygame.sprite.collide_mask(player1, pongball)
-        if ballplayercollide is not None:
-            dotcoord = (player1.rect.topleft[0] + ballplayercollide[0],player1.rect.topleft[1] + ballplayercollide[1])
-            pygame.draw.circle(display_surface, (255, 0, 0), dotcoord, 2)  
-
-        blockplayercollide = pygame.sprite.collide_mask(mob, pongball)
-        if blockplayercollide is not None:
-            dotcoord = (mob.rect.topleft[0] + blockplayercollide[0], mob.rect.topleft[1] + blockplayercollide[1])
-            pygame.draw.circle(display_surface, (255, 0, 0), dotcoord, 2)  
-
+        pongball.collidemob(mob)
+        
         mobgroup.draw(display_surface)
 
 
